@@ -7,6 +7,7 @@ import "core:log"
 import r2 "../../src"
 
 logo: r2.Texture
+bill: r2.Texture
 font: r2.Font
 
 WIDTH :: 800
@@ -21,6 +22,7 @@ main :: proc() {
 init :: proc() {
 	font = r2.load_font("assets/crimes-09.ttf", 24)
 	logo = r2.load_texture("assets/odin-logo.jpg")
+	bill = r2.load_texture("assets/bill.png")
 }
 
 update :: proc() {
@@ -40,6 +42,7 @@ render :: proc() {
 
 cleanup :: proc() {
 	r2.unload_texture(logo)
+	r2.unload_texture(bill)
 	r2.unload_font(font)
 }
 
@@ -54,6 +57,7 @@ draw_texture :: proc() {
 	r2.draw_texture(logo, {0, 0, 400, 400}, {100, 100, 200, 200})
 	r2.draw_texture(logo, {200, 200, 200, 200}, {310, 100, 100, 100})
 	r2.draw_texture(logo, {300, 300, 100, 100}, {420, 100, 100, 100})
+	r2.draw_texture(bill, {0, 0, 460, 460}, {520, 100, 100, 100})
 }
 
 draw_text :: proc() {
