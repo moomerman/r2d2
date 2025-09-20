@@ -1,0 +1,12 @@
+{
+  "dependencies": {
+    "github.com/floooh/sokol-odin": {
+      "ref": "main",
+      "sha": "2fbaae3c245b2f65c961ef4a38482c81f6bbae6c"
+    },
+    "github.com/floooh/sokol-tools-bin": {
+      "ref": "master",
+      "sha": "b2858f214eb333665d897741b48d3a55369304eb"
+    }
+  }
+}

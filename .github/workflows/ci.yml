@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build_linux:
+    name: Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v3
+      - uses: moomerman/deps@v1.0.4
+
+      - uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libgl1-mesa-dev libegl1-mesa-dev mesa-common-dev xorg-dev libasound-dev
+          version: 1.1
+
+      - uses: laytan/setup-odin@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          release: false
+
+      - name: STB
+        run: just compile-stb
+
+      - name: Sokol
+        run: just compile-sokol
+
+      - name: Build Examples
+        run: just build-examples
+
+  build_macos:
+    name: MacOS
+    strategy:
+      matrix:
+        os: [macos-13, macos-15, macos-26]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: moomerman/deps@v1.0.4
+
+      - name: Install Dependencies
+        run: brew install just odin
+
+      - name: STB
+        run: just compile-stb
+
+      - name: Sokol
+        run: just compile-sokol
+
+      - name: Build Examples
+        run: just build-examples
+
+  build_windows:
+    name: Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v3
+      - uses: moomerman/deps@v1.0.4
+
+      - uses: laytan/setup-odin@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          release: false
+
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - name: STB
+        shell: cmd
+        run: just compile-stb
+
+      - name: Sokol
+        shell: cmd
+        run: just compile-sokol
+
+      - name: Build Examples
+        run: just build-examples
