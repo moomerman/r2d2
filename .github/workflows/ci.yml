@@ -25,7 +25,6 @@ jobs:
       - uses: laytan/setup-odin@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          release: false
 
       - name: STB
         run: just compile-stb
@@ -33,14 +32,19 @@ jobs:
       - name: Sokol
         run: just compile-sokol
 
-      - name: Build Examples
-        run: just build-examples
+      - name: Build Demo
+        run: just build-demo
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{runner.os}}-${{runner.arch}}
+          path: examples/demo.bin
 
   build_macos:
     name: MacOS
     strategy:
       matrix:
-        os: [macos-13, macos-15, macos-26]
+        os: [macos-13, macos-26]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -55,8 +59,13 @@ jobs:
       - name: Sokol
         run: just compile-sokol
 
-      - name: Build Examples
-        run: just build-examples
+      - name: Build Demo
+        run: just build-demo
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{runner.os}}-${{runner.arch}}
+          path: examples/demo.bin
 
   build_windows:
     name: Windows
@@ -74,12 +83,16 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@v1
 
       - name: STB
-        shell: cmd
         run: just compile-stb
 
       - name: Sokol
         shell: cmd
-        run: just compile-sokol
+        run: cd .deps/github.com/floooh/sokol-odin/sokol && build_clibs_windows.cmd
 
-      - name: Build Examples
-        run: just build-examples
+      - name: Build Demo
+        run: just build-demo
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{runner.os}}-${{runner.arch}}
+          path: examples/demo.*

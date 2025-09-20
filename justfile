@@ -1,6 +1,5 @@
-build-examples:
-    cd examples && odin build sprite -vet -strict-style
-    cd examples && odin build mouse -vet -strict-style
+build-demo:
+    cd examples && odin build demo -vet -strict-style
 
 [unix]
 compile-stb:
@@ -8,7 +7,7 @@ compile-stb:
 
 [windows]
 compile-stb:
-    powershell -Command "$env:ODIN_ROOT = (odin root); cd $env:ODIN_ROOT\\vendor\\stb\\src; .\\build.bat"
+    cd $(odin root) && build.bat
 
 [linux]
 compile-sokol:
