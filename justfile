@@ -29,3 +29,7 @@ compile-sokol:
 [windows]
 compile-sokol:
     cd .deps/github.com/floooh/sokol-odin/sokol && build_clibs_windows.cmd
+
+[unix]
+compile-miniaudio:
+    cd $(odin root) && make -C vendor/miniaudio/src

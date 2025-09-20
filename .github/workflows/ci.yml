@@ -29,6 +29,9 @@ jobs:
       - name: STB
         run: just compile-stb
 
+      - name: miniaudio
+        run: just compile-miniaudio
+
       - name: Sokol
         run: just compile-sokol
 
