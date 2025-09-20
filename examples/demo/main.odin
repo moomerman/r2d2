@@ -28,6 +28,7 @@ update :: proc() {
 	if r2.is_mouse_just_pressed(.LEFT) {
 		log.infof("Mouse clicked at: (%.2f, %.2f)", mouse_pos.x, mouse_pos.y)
 	}
+	play_audio()
 	defer free_all(context.temp_allocator)
 }
 
@@ -71,4 +72,22 @@ draw_text :: proc() {
 
 	size_text := fmt.tprintf("Size: {:.0f}x{:.0f}", text_size.x, text_size.y)
 	r2.draw_text(size_text, font, {50, 430}, {150, 150, 150, 255})
+}
+
+play_audio :: proc() {
+	if r2.is_key_just_pressed(.SPACE) {
+		r2.play_sound("assets/beep.wav")
+	}
+
+	if r2.is_key_just_pressed(.M) {
+		r2.play_sound("assets/music.ogg")
+	}
+
+	if r2.is_key_pressed(.ARROW_UP) {
+		r2.set_master_volume(1.0)
+	}
+	if r2.is_key_pressed(.ARROW_DOWN) {
+		r2.set_master_volume(0.3)
+
+	}
 }

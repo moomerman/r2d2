@@ -45,6 +45,8 @@ SpriteBatch :: struct {
 	max_sprites:     int,
 	sprite_count:    int,
 	projection:      linalg.Matrix4f32,
+	transform:       linalg.Matrix4f32,
+	view_projection: linalg.Matrix4f32,
 }
 
 // Global batch instance
@@ -182,6 +184,22 @@ begin :: proc() {
 set_projection :: proc(width, height: f32) {
 	// Create orthographic projection matrix for 2D rendering
 	sprite_batch.projection = linalg.matrix_ortho3d(0, width, height, 0, -1, 1)
+	sprite_batch.transform = linalg.MATRIX4F32_IDENTITY
+	update_view_projection()
+}
+
+set_transform_matrix :: proc(transform: linalg.Matrix4f32) {
+	sprite_batch.transform = transform
+	update_view_projection()
+}
+
+reset_transform_matrix :: proc() {
+	sprite_batch.transform = linalg.MATRIX4F32_IDENTITY
+	update_view_projection()
+}
+
+update_view_projection :: proc() {
+	sprite_batch.view_projection = sprite_batch.projection * sprite_batch.transform
 }
 
 add_sprite :: proc(texture: sgfx.Image, src: Rect, dest: Rect, tint: Color, texture_size: [2]f32) {
@@ -292,7 +310,7 @@ flush :: proc() {
 
 	// Apply uniforms using generated uniform structure
 	uniforms := Uniforms {
-		projection = sprite_batch.projection,
+		projection = sprite_batch.view_projection,
 	}
 
 	sgfx.apply_uniforms(UB_uniforms, {ptr = &uniforms, size = size_of(Uniforms)})

@@ -4,6 +4,9 @@ run-demo:
 build-demo:
     cd examples && odin build demo -vet -strict-style
 
+run-camera:
+    cd examples && odin run camera -vet -strict-style
+
 shdc:
     .deps/github.com/floooh/sokol-tools-bin/bin/osx_arm64/sokol-shdc --input src/sokol/sprite.glsl --output src/sokol/sprite.odin --slang glsl410:hlsl4:metal_macos -f sokol_odin
 

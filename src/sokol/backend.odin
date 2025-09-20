@@ -20,6 +20,45 @@ MouseButton :: enum {
 	MIDDLE,
 }
 
+Key :: enum {
+	SPACE,
+	A,
+	B,
+	C,
+	D,
+	E,
+	F,
+	G,
+	H,
+	I,
+	J,
+	K,
+	L,
+	M,
+	N,
+	O,
+	P,
+	Q,
+	R,
+	S,
+	T,
+	U,
+	V,
+	W,
+	X,
+	Y,
+	Z,
+	ARROW_UP,
+	ARROW_DOWN,
+	ARROW_LEFT,
+	ARROW_RIGHT,
+	ENTER,
+	ESCAPE,
+	SHIFT,
+	CTRL,
+	ALT,
+}
+
 BackendState :: struct {
 	initialized:        bool,
 	should_quit:        bool,
@@ -36,6 +75,10 @@ BackendState :: struct {
 	mouse_pos:          [2]f32,
 	mouse_pressed:      [MouseButton]bool,
 	mouse_just_pressed: [MouseButton]bool,
+
+	// Keyboard state
+	key_pressed:        [Key]bool,
+	key_just_pressed:   [Key]bool,
 }
 
 backend_state: BackendState
@@ -71,6 +114,9 @@ sokol_frame :: proc "c" () {
 
 	// Clear "just pressed" state after user update
 	for &pressed in backend_state.mouse_just_pressed {
+		pressed = false
+	}
+	for &pressed in backend_state.key_just_pressed {
 		pressed = false
 	}
 
@@ -141,13 +187,103 @@ sokol_event :: proc "c" (event: ^sapp.Event) {
 		button := sokol_mouse_button_to_our_button(event.mouse_button)
 		backend_state.mouse_pressed[button] = false
 
+	case .KEY_DOWN:
+		if key, ok := sokol_keycode_to_our_key(event.key_code); ok {
+			backend_state.key_pressed[key] = true
+			backend_state.key_just_pressed[key] = true
+		}
+
+	case .KEY_UP:
+		if key, ok := sokol_keycode_to_our_key(event.key_code); ok {
+			backend_state.key_pressed[key] = false
+		}
+
 	case .QUIT_REQUESTED:
 		backend_state.should_quit = true
 	}
 }
 
-sokol_mouse_button_to_our_button :: proc(sokol_button: sapp.Mousebutton) -> MouseButton {
-	switch sokol_button {
+sokol_keycode_to_our_key :: proc(keycode: sapp.Keycode) -> (Key, bool) {
+	#partial switch keycode {
+	case .SPACE:
+		return .SPACE, true
+	case .A:
+		return .A, true
+	case .B:
+		return .B, true
+	case .C:
+		return .C, true
+	case .D:
+		return .D, true
+	case .E:
+		return .E, true
+	case .F:
+		return .F, true
+	case .G:
+		return .G, true
+	case .H:
+		return .H, true
+	case .I:
+		return .I, true
+	case .J:
+		return .J, true
+	case .K:
+		return .K, true
+	case .L:
+		return .L, true
+	case .M:
+		return .M, true
+	case .N:
+		return .N, true
+	case .O:
+		return .O, true
+	case .P:
+		return .P, true
+	case .Q:
+		return .Q, true
+	case .R:
+		return .R, true
+	case .S:
+		return .S, true
+	case .T:
+		return .T, true
+	case .U:
+		return .U, true
+	case .V:
+		return .V, true
+	case .W:
+		return .W, true
+	case .X:
+		return .X, true
+	case .Y:
+		return .Y, true
+	case .Z:
+		return .Z, true
+	case .UP:
+		return .ARROW_UP, true
+	case .DOWN:
+		return .ARROW_DOWN, true
+	case .LEFT:
+		return .ARROW_LEFT, true
+	case .RIGHT:
+		return .ARROW_RIGHT, true
+	case .ENTER:
+		return .ENTER, true
+	case .ESCAPE:
+		return .ESCAPE, true
+	case .LEFT_SHIFT, .RIGHT_SHIFT:
+		return .SHIFT, true
+	case .LEFT_CONTROL, .RIGHT_CONTROL:
+		return .CTRL, true
+	case .LEFT_ALT, .RIGHT_ALT:
+		return .ALT, true
+	case:
+		return .SPACE, false // Default return, but indicate failure
+	}
+}
+
+sokol_mouse_button_to_our_button :: proc(button: sapp.Mousebutton) -> MouseButton {
+	switch button {
 	case .LEFT:
 		return .LEFT
 	case .RIGHT:
@@ -216,6 +352,14 @@ set_callbacks :: proc(
 
 should_quit :: proc() -> bool {
 	return backend_state.should_quit
+}
+
+is_key_pressed :: proc(key: Key) -> bool {
+	return backend_state.key_pressed[key]
+}
+
+is_key_just_pressed :: proc(key: Key) -> bool {
+	return backend_state.key_just_pressed[key]
 }
 
 clear_screen :: proc(color: Color) {

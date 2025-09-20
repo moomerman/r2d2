@@ -1,214 +1,148 @@
-#+private
 package r2d2
 
-import "core:c"
+import backend "./sokol"
+import truetype "./stbtruetype"
 import "core:log"
-import "core:os"
-import "core:strconv"
-import "core:strings"
 import "core:unicode/utf8"
 
-import backend "./sokol"
-import stbtt "vendor:stb/truetype"
-
-// Font atlas structure - contains a texture with baked character data
-FontAtlas :: struct {
-	texture:     Texture,
-	char_info:   [95]stbtt.bakedchar, // ASCII printable characters (32-126)
-	size:        int,
-	line_height: f32,
+TextSystem :: struct {
+	initialized: bool,
 }
 
-// Font manager similar to your texture manager pattern
-FontManager :: struct {
-	fonts:          [dynamic]FontAtlas,
-	path_to_handle: map[string]Font,
-	handle_to_path: map[Font]string,
-	next_handle:    u32,
+text_system: TextSystem
+
+FontTextureMapping :: struct {
+	font_handle:    truetype.Font,
+	texture_handle: Texture,
 }
 
-// Global font manager
-font_manager: FontManager
+font_textures: [dynamic]FontTextureMapping
 
-// Initialize the font system
-init_fonts :: proc() {
-	font_manager.fonts = make([dynamic]FontAtlas)
-	font_manager.path_to_handle = make(map[string]Font)
-	font_manager.handle_to_path = make(map[Font]string)
-	font_manager.next_handle = 1
-}
-
-// Clean up font resources
-cleanup_fonts :: proc() {
-	// Unload all font textures
-	for font_atlas in font_manager.fonts {
-		if font_atlas.texture != 0 {
-			unload_texture(font_atlas.texture)
-		}
+init_text :: proc() -> bool {
+	if !truetype.init_truetype() {
+		log.error("Failed to initialize truetype system")
+		return false
 	}
-	delete(font_manager.fonts)
 
-	// Clean up path strings
-	for _, path in font_manager.handle_to_path {
-		delete(path)
-	}
-	delete(font_manager.path_to_handle)
-	delete(font_manager.handle_to_path)
+	font_textures = make([dynamic]FontTextureMapping)
+	text_system.initialized = true
+	log.info("Text system initialized")
+	return true
 }
 
-// Load a font at a specific size - creates a bitmap font atlas
+cleanup_text :: proc() {
+	if !text_system.initialized do return
+
+	// Cleanup font textures
+	for mapping in font_textures {
+		backend.unload_texture(u32(mapping.texture_handle))
+	}
+	delete(font_textures)
+
+	truetype.cleanup_truetype()
+	text_system.initialized = false
+	log.info("Text system cleaned up")
+}
+
+// Load font and create texture
 text_load_font :: proc(path: string, size: int) -> Font {
-	// Create unique key for this font+size combination
-	buf: [16]byte
-	size_str := strconv.itoa(buf[:], size)
-	key := strings.concatenate({path, "_", size_str}, context.temp_allocator)
-
-	// Return existing font if already loaded
-	if handle, exists := font_manager.path_to_handle[key]; exists {
-		return handle
+	if !text_system.initialized {
+		log.error("Text system not initialized")
+		return Font(0)
 	}
 
-	// Load font file
-	font_data, ok := os.read_entire_file(path)
+	// Load font through truetype system
+	font_handle := truetype.load_font(path, size)
+	if font_handle == 0 {
+		return Font(0)
+	}
+
+	// Get atlas data from truetype system
+	atlas_data, width, height, ok := truetype.get_font_atlas_data(font_handle)
 	if !ok {
-		log.errorf("Failed to load font file: %s", path)
-		return Font(0)
-	}
-	defer delete(font_data)
-
-	// Initialize stb_truetype font info
-	font_info: stbtt.fontinfo
-	if !stbtt.InitFont(&font_info, raw_data(font_data), 0) {
-		log.errorf("Failed to initialize font: %s", path)
+		log.errorf("Failed to get atlas data for font: %s", path)
+		truetype.unload_font(font_handle)
 		return Font(0)
 	}
 
-	// Create bitmap atlas for ASCII printable characters (32-126)
-	atlas_width, atlas_height := 512, 512 // Start with reasonable size
-	atlas_bitmap := make([]u8, atlas_width * atlas_height)
-	defer delete(atlas_bitmap)
-
-	// Clear bitmap
-	for i in 0 ..< len(atlas_bitmap) {
-		atlas_bitmap[i] = 0
-	}
-
-	// Bake characters into the atlas
-	font_atlas := FontAtlas {
-		size = size,
-	}
-
-	pixel_height := f32(size)
-	result := stbtt.BakeFontBitmap(
-		raw_data(font_data),
-		0,
-		pixel_height,
-		raw_data(atlas_bitmap),
-		c.int(atlas_width),
-		c.int(atlas_height),
-		32, // First character (space)
-		95, // Number of characters
-		raw_data(font_atlas.char_info[:]),
-	)
-
-	if result <= 0 {
-		log.errorf("Failed to bake font bitmap for: %s", path)
-		return Font(0)
-	}
-
-
-	// Calculate line height
-	ascent, descent, line_gap: c.int
-	stbtt.GetFontVMetrics(&font_info, &ascent, &descent, &line_gap)
-	scale := stbtt.ScaleForPixelHeight(&font_info, pixel_height)
-	font_atlas.line_height = f32(ascent - descent + line_gap) * scale
-
-	// Convert grayscale bitmap to RGBA for texture creation
-	rgba_data := make([]u8, atlas_width * atlas_height * 4)
-	defer delete(rgba_data)
-
-	for i in 0 ..< len(atlas_bitmap) {
-		rgba_idx := i * 4
-		alpha := atlas_bitmap[i]
-
-		// White color with alpha for the text
-		rgba_data[rgba_idx + 0] = 255 // R
-		rgba_data[rgba_idx + 1] = 255 // G
-		rgba_data[rgba_idx + 2] = 255 // B
-		rgba_data[rgba_idx + 3] = alpha // A
-	}
-
-	// Create texture from the atlas
-	texture_handle := backend.create_texture_from_data(
-		raw_data(rgba_data),
-		c.int(atlas_width),
-		c.int(atlas_height),
-	)
+	// Create texture in backend
+	texture_handle := backend.create_texture_from_data(raw_data(atlas_data), width, height)
 
 	if texture_handle == 0 {
 		log.errorf("Failed to create font atlas texture for: %s", path)
+		truetype.unload_font(font_handle)
 		return Font(0)
 	}
 
-	font_atlas.texture = Texture(texture_handle)
+	mapping := FontTextureMapping {
+		font_handle    = font_handle,
+		texture_handle = Texture(texture_handle),
+	}
+	append(&font_textures, mapping)
 
-	// Store the font
-	handle := Font(font_manager.next_handle)
-	font_manager.next_handle += 1
-
-	append(&font_manager.fonts, font_atlas)
-
-	key_copy := strings.clone(key)
-	font_manager.path_to_handle[key_copy] = handle
-	font_manager.handle_to_path[handle] = key_copy
-
-	log.infof("Loaded font: %s (size: %d, handle: %d)", path, size, handle)
-	return handle
+	log.infof(
+		"Created font texture for: %s (font: %d, texture: %d)",
+		path,
+		font_handle,
+		texture_handle,
+	)
+	return Font(font_handle)
 }
 
-// Get font atlas from handle
-get_font_atlas :: proc(handle: Font) -> ^FontAtlas {
-	if handle == 0 || int(handle) > len(font_manager.fonts) {
-		log.warnf("get_font_atlas: invalid handle %d", handle)
-		return nil
-	}
-	return &font_manager.fonts[handle - 1]
-}
+text_unload_font :: proc(font: Font) {
+	if !text_system.initialized do return
+	if font == 0 do return
 
-text_get_size :: proc(text: string, font: Font) -> [2]f32 {
-	font_atlas := get_font_atlas(font)
-	if font_atlas == nil {
-		return {0, 0}
-	}
+	font_handle := truetype.Font(font)
 
-	if len(text) == 0 {
-		return {0, 0}
-	}
-
-	// Convert to runes for proper Unicode handling
-	runes := utf8.string_to_runes(text, context.temp_allocator)
-	width: f32 = 0
-	height := font_atlas.line_height
-
-	for r in runes {
-		if r >= 32 && r <= 126 {
-			char_index := int(r - 32)
-			char_info := &font_atlas.char_info[char_index]
-			width += char_info.xadvance
+	for mapping, i in font_textures {
+		if mapping.font_handle == font_handle {
+			backend.unload_texture(u32(mapping.texture_handle))
+			ordered_remove(&font_textures, i)
+			break
 		}
 	}
 
-	return {width, height}
+	truetype.unload_font(font_handle)
 }
 
-text_draw :: proc(text: string, font: Font, position: [2]f32, color: Color) {
-	font_atlas := get_font_atlas(font)
-	if font_atlas == nil {
-		log.warnf("draw_text: invalid font handle: %d", font)
-		return
+get_font_texture :: proc(font: Font) -> Texture {
+	if !text_system.initialized do return Texture(0)
+	if font == 0 do return Texture(0)
+
+	font_handle := truetype.Font(font)
+
+	// Find texture mapping
+	for mapping in font_textures {
+		if mapping.font_handle == font_handle {
+			return mapping.texture_handle
+		}
 	}
 
-	if len(text) == 0 {
+	return Texture(0)
+}
+
+text_get_text_size :: proc(text: string, font: Font) -> Vec2 {
+	if !text_system.initialized do return {0, 0}
+	if font == 0 do return {0, 0}
+
+	font_handle := truetype.Font(font)
+	width, height := truetype.get_text_size(text, font_handle)
+	return Vec2{width, height}
+}
+
+text_draw_text :: proc(text: string, font: Font, position: Vec2, color: Color) {
+	if !text_system.initialized do return
+	if font == 0 {
+		log.warn("draw_text: invalid font handle: 0")
+		return
+	}
+	if len(text) == 0 do return
+
+	font_handle := truetype.Font(font)
+	texture := get_font_texture(font)
+	if texture == 0 {
+		log.warnf("draw_text: no texture found for font handle: %d", font)
 		return
 	}
 
@@ -220,8 +154,8 @@ text_draw :: proc(text: string, font: Font, position: [2]f32, color: Color) {
 
 	for r in runes {
 		if r >= 32 && r <= 126 {
-			char_index := int(r - 32)
-			char_info := &font_atlas.char_info[char_index]
+			char_info, ok := truetype.get_char_info(font_handle, r)
+			if !ok do continue
 
 			// Only draw if character has visible pixels
 			if char_info.x1 > char_info.x0 && char_info.y1 > char_info.y0 {
@@ -242,32 +176,16 @@ text_draw :: proc(text: string, font: Font, position: [2]f32, color: Color) {
 				}
 
 				// Draw the character using existing sprite system
-				draw_texture(font_atlas.texture, src, dest, color)
+				backend.draw_sprite(
+					u32(texture),
+					backend.Rect(src),
+					backend.Rect(dest),
+					backend.Color(color),
+				)
 			}
 
 			// Advance to next character position
 			x_offset += char_info.xadvance
 		}
-	}
-}
-
-// Unload a font and free its resources
-text_unload_font :: proc(handle: Font) {
-	if handle == 0 || int(handle) > len(font_manager.fonts) {
-		log.warnf("unload_font: invalid handle %d", handle)
-		return
-	}
-
-	font_atlas := &font_manager.fonts[handle - 1]
-	if font_atlas.texture != 0 {
-		unload_texture(font_atlas.texture)
-		font_atlas.texture = 0
-	}
-
-	// Clean up path mapping
-	if path, exists := font_manager.handle_to_path[handle]; exists {
-		delete_key(&font_manager.path_to_handle, path)
-		delete(path)
-		delete_key(&font_manager.handle_to_path, handle)
 	}
 }
