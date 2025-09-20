@@ -1,5 +1,5 @@
-@header package r2d2
-@header import sg ".deps/github.com/floooh/sokol-odin/sokol/gfx"
+@header package sokol
+@header import sg "../../.deps/github.com/floooh/sokol-odin/sokol/gfx"
 
 @ctype mat4 Mat4
 

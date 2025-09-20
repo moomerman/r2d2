@@ -1,5 +1,11 @@
+run-demo:
+    cd examples && odin run demo -vet -strict-style
+
 build-demo:
     cd examples && odin build demo -vet -strict-style
+
+shdc:
+    .deps/github.com/floooh/sokol-tools-bin/bin/osx_arm64/sokol-shdc --input src/sokol/sprite.glsl --output src/sokol/sprite.odin --slang glsl410:hlsl4:metal_macos -f sokol_odin
 
 [unix]
 compile-stb:
