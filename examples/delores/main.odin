@@ -1,7 +1,6 @@
 package delores
 // run this with `cd examples && odin run delores`
 
-import "core:fmt"
 import "core:log"
 
 import r2 "../../src"
@@ -24,7 +23,7 @@ init :: proc() {
 	scene_texture = r2.load_texture("delores/assets/scenes/post_office.png")
 	game_texture = r2.load_texture("delores/assets/game.png")
 
-	camera := r2.camera_create_centered(WIDTH, HEIGHT, {160, 90}, 4.0)
+	camera := r2.camera_create({0, 0}, 4.0)
 	r2.camera_set(camera)
 }
 
@@ -53,14 +52,19 @@ clear :: proc() {
 }
 
 draw_textures :: proc() {
-	// Draw main room background
-	r2.draw_texture(scene_texture, {0, 0, 320, 180}, {0, 0, 320, 180})
+	r2.draw_texture(scene_texture, {3, 3, 320, 180}, {0, 0, 320, 180}) // background
 
-	// Draw ceiling lamp from same texture
-	r2.draw_texture(scene_texture, {327, 3, 155, 109}, {45, 8, 155, 109})
+	r2.draw_texture(scene_texture, {327, 3, 155, 109}, {45, 8, 155, 109}) // ceiling lamp
+	r2.draw_texture(scene_texture, {199, 187, 123, 37}, {62, 72, 123, 37}) // counter
+	r2.draw_texture(scene_texture, {486, 3, 73, 140}, {247, 0, 73, 140}) // side counter
+
+	r2.draw_texture(scene_texture, {3, 187, 192, 64}, {22, 116, 192, 64}) // foreground
 }
 
 draw_text :: proc() {
-	r2.draw_text("Hello R2D2!", font, {50, 50}, {255, 255, 255, 255})
-	r2.draw_text("Post Office Scene", font, {14, 14}, {255, 255, 255, 255})
+	r2.camera_push(r2.camera_create())
+
+	r2.draw_text("Post Office", font, {14, 30}, {255, 255, 255, 255})
+
+	r2.camera_pop()
 }

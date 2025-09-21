@@ -13,14 +13,14 @@ Font :: distinct u32
 
 // Font atlas structure - contains baked character data and metadata
 FontAtlas :: struct {
-	char_info:   [95]stbtt.bakedchar, // ASCII printable characters (32-126)
-	atlas_data:  []u8,                // RGBA bitmap data
-	atlas_width: i32,
+	char_info:    [95]stbtt.bakedchar, // ASCII printable characters (32-126)
+	atlas_data:   []u8, // RGBA bitmap data
+	atlas_width:  i32,
 	atlas_height: i32,
-	size:        int,
-	line_height: f32,
-	path:        string,
-	loaded:      bool,
+	size:         int,
+	line_height:  f32,
+	path:         string,
+	loaded:       bool,
 }
 
 // Font manager
@@ -40,7 +40,6 @@ init_truetype :: proc() -> bool {
 	font_manager.path_to_handle = make(map[string]Font)
 	font_manager.handle_to_path = make(map[Font]string)
 	font_manager.next_handle = 1
-	log.info("Truetype system initialized")
 	return true
 }
 
@@ -60,8 +59,6 @@ cleanup_truetype :: proc() {
 	}
 	delete(font_manager.path_to_handle)
 	delete(font_manager.handle_to_path)
-
-	log.info("Truetype system cleaned up")
 }
 
 // Load a font at a specific size - creates a bitmap font atlas
@@ -255,6 +252,4 @@ unload_font :: proc(handle: Font) {
 		delete(path)
 		delete_key(&font_manager.handle_to_path, handle)
 	}
-
-	log.infof("Unloaded font (handle: %d)", handle)
 }

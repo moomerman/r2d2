@@ -208,7 +208,6 @@ sokol_event :: proc "c" (event: ^sapp.Event) {
 		window_width := f32(event.window_width)
 		window_height := f32(event.window_height)
 		set_projection(window_width, window_height)
-		update_font_projection(window_width, window_height)
 	}
 }
 

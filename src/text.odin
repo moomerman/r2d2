@@ -26,7 +26,6 @@ init_text :: proc() -> bool {
 
 	font_textures = make([dynamic]FontTextureMapping)
 	text_system.initialized = true
-	log.info("Text system initialized")
 	return true
 }
 
@@ -80,12 +79,6 @@ text_load_font :: proc(path: string, size: int) -> Font {
 	}
 	append(&font_textures, mapping)
 
-	log.infof(
-		"Created font texture for: %s (font: %d, texture: %d)",
-		path,
-		font_handle,
-		texture_handle,
-	)
 	return Font(font_handle)
 }
 
