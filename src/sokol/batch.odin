@@ -38,7 +38,6 @@ SpriteBatch :: struct {
 	vertex_buffer:   sgfx.Buffer,
 	index_buffer:    sgfx.Buffer,
 	default_sampler: sgfx.Sampler,
-	current_view:    sgfx.View,
 
 	// Current state
 	current_texture: sgfx.Image,
@@ -49,8 +48,27 @@ SpriteBatch :: struct {
 	view_projection: linalg.Matrix4f32,
 }
 
-// Global batch instance
+// Separate font batch to avoid conflicts with texture rendering
+FontBatch :: struct {
+	vertices:        [dynamic]SpriteVertex,
+
+	// Separate Sokol resources
+	pipeline:        sgfx.Pipeline,
+	vertex_buffer:   sgfx.Buffer,
+	index_buffer:    sgfx.Buffer,
+	sampler:         sgfx.Sampler,
+	bindings:        sgfx.Bindings,
+
+	// Font state
+	current_texture: sgfx.Image,
+	max_sprites:     int,
+	sprite_count:    int,
+	projection:      linalg.Matrix4f32,
+}
+
+// Global batch instances
 sprite_batch: SpriteBatch
+font_batch: FontBatch
 
 init_batch :: proc() {
 	// Initialize texture manager
@@ -144,8 +162,80 @@ init_batch :: proc() {
 		},
 	)
 
-	// Create default sampler (will be reused)
+	// Create default sampler
 	sprite_batch.default_sampler = sgfx.make_sampler({})
+
+	// Initialize font batch with separate resources
+	font_batch.max_sprites = 500
+	font_batch.vertices = make([dynamic]SpriteVertex, 0, font_batch.max_sprites * 4)
+
+	// Create separate vertex buffer for fonts
+	font_batch.vertex_buffer = sgfx.make_buffer(
+		{
+			usage = {vertex_buffer = true, dynamic_update = true},
+			size = uint(font_batch.max_sprites * 4 * size_of(SpriteVertex)),
+			label = "font_vertex_buffer",
+		},
+	)
+
+	// Reuse index buffer (it's just pattern data)
+	font_batch.index_buffer = sprite_batch.index_buffer
+
+	// Create separate sampler for fonts
+	font_batch.sampler = sgfx.make_sampler({})
+
+	// Pipeline layout description for fonts (same as sprites)
+	font_layout := sgfx.Vertex_Layout_State {
+		buffers = {0 = {stride = i32(size_of(SpriteVertex))}},
+		attrs = {
+			ATTR_sprite_position = {
+				buffer_index = 0,
+				format = .FLOAT2,
+				offset = i32(offset_of(SpriteVertex, position)),
+			},
+			ATTR_sprite_texcoord = {
+				buffer_index = 0,
+				format = .FLOAT2,
+				offset = i32(offset_of(SpriteVertex, uv)),
+			},
+			ATTR_sprite_color = {
+				buffer_index = 0,
+				format = .FLOAT4,
+				offset = i32(offset_of(SpriteVertex, color)),
+			},
+		},
+	}
+
+	// Create separate pipeline for fonts (same shader, separate instance)
+	font_batch.pipeline = sgfx.make_pipeline(
+		{
+			shader = sgfx.make_shader(sprite_shader_desc(sgfx.query_backend())),
+			layout = font_layout,
+			index_type = .UINT16,
+			colors = {
+				0 = {
+					blend = {
+						enabled = true,
+						src_factor_rgb = .SRC_ALPHA,
+						dst_factor_rgb = .ONE_MINUS_SRC_ALPHA,
+						src_factor_alpha = .SRC_ALPHA,
+						dst_factor_alpha = .ONE_MINUS_SRC_ALPHA,
+					},
+				},
+			},
+			label = "font_pipeline",
+		},
+	)
+
+	// Set up font bindings
+	font_batch.bindings = sgfx.Bindings {
+		vertex_buffers = {0 = font_batch.vertex_buffer},
+		index_buffer = font_batch.index_buffer,
+		samplers = {0 = font_batch.sampler},
+	}
+
+	// Initialize font projection
+	font_batch.projection = linalg.matrix_ortho3d_f32(0, 800, 600, 0, -1, 1)
 }
 
 cleanup :: proc() {
@@ -156,12 +246,15 @@ cleanup :: proc() {
 	if sprite_batch.default_sampler.id != 0 {
 		sgfx.destroy_sampler(sprite_batch.default_sampler)
 	}
-	if sprite_batch.current_view.id != 0 {
-		sgfx.destroy_view(sprite_batch.current_view)
-	}
+
+	// Cleanup font batch resources
+	sgfx.destroy_buffer(font_batch.vertex_buffer)
+	sgfx.destroy_pipeline(font_batch.pipeline)
+	sgfx.destroy_sampler(font_batch.sampler)
 
 	delete(sprite_batch.vertices)
 	delete(sprite_batch.indices)
+	delete(font_batch.vertices)
 
 	// Cleanup texture manager
 	cleanup_textures()
@@ -178,7 +271,13 @@ cleanup :: proc() {
 begin :: proc() {
 	clear_dynamic_array(&sprite_batch.vertices)
 	sprite_batch.sprite_count = 0
-	// Don't reset current_texture - let it persist between frames for batching efficiency
+	// Reset current_texture to ensure clean state
+	sprite_batch.current_texture = {}
+
+	// Reset font batch
+	clear_dynamic_array(&font_batch.vertices)
+	font_batch.sprite_count = 0
+	font_batch.current_texture = {}
 }
 
 set_projection :: proc(width, height: f32) {
@@ -208,12 +307,6 @@ add_sprite :: proc(texture: sgfx.Image, src: Rect, dest: Rect, tint: Color, text
 	   sprite_batch.sprite_count >= sprite_batch.max_sprites {
 		flush()
 		sprite_batch.current_texture = texture
-
-		// Update view when texture changes
-		if sprite_batch.current_view.id != 0 {
-			sgfx.destroy_view(sprite_batch.current_view)
-		}
-		sprite_batch.current_view = sgfx.make_view({texture = {image = texture}})
 	}
 
 	// Normalize color to 0-1 range
@@ -285,7 +378,6 @@ flush :: proc() {
 	if sprite_batch.sprite_count == 0 do return
 
 	if len(sprite_batch.vertices) == 0 {
-		log.warn("batch_flush: Empty vertex buffer")
 		return
 	}
 
@@ -296,11 +388,16 @@ flush :: proc() {
 	}
 	sgfx.update_buffer(sprite_batch.vertex_buffer, vertex_data)
 
-	// Set up bindings using cached sampler and view
+	// Create view for current texture like the working example approach
+	// Create view for current texture
+	view := sgfx.make_view({texture = {image = sprite_batch.current_texture}})
+	defer sgfx.destroy_view(view)
+
+	// Set up bindings
 	bindings := sgfx.Bindings {
 		vertex_buffers = {0 = sprite_batch.vertex_buffer},
 		index_buffer = sprite_batch.index_buffer,
-		views = {0 = sprite_batch.current_view},
+		views = {0 = view},
 		samplers = {0 = sprite_batch.default_sampler},
 	}
 
@@ -317,11 +414,6 @@ flush :: proc() {
 
 	// Draw
 	num_indices := sprite_batch.sprite_count * 6
-	if num_indices <= 0 {
-		log.warnf("batch_flush: Invalid index count: %d", num_indices)
-		return
-	}
-
 	sgfx.draw(0, num_indices, 1)
 
 	// Reset for next batch
@@ -331,6 +423,7 @@ flush :: proc() {
 
 end :: proc() {
 	flush()
+	flush_fonts()
 }
 
 // Complete texture management system
@@ -343,7 +436,7 @@ TextureInfo :: struct {
 TextureManager :: struct {
 	textures:       [dynamic]TextureInfo,
 	path_to_handle: map[string]u32,
-	handle_to_path: map[u32]string, // For cleanup
+	handle_to_path: map[u32]string,
 	next_handle:    u32,
 }
 
@@ -488,4 +581,135 @@ create_texture_from_data :: proc(data: rawptr, width: c.int, height: c.int) -> u
 
 	log.infof("Created texture from data (handle: %d, %dx%d)", handle, width, height)
 	return handle
+}
+
+// Separate font sprite addition that uses font batch
+add_font_sprite :: proc(
+	texture: sgfx.Image,
+	src: Rect,
+	dest: Rect,
+	tint: Color,
+	texture_size: [2]f32,
+) {
+	// Flush if texture changed or batch is full
+	if font_batch.current_texture.id != texture.id ||
+	   font_batch.sprite_count >= font_batch.max_sprites {
+		flush_fonts()
+		font_batch.current_texture = texture
+	}
+
+	// Normalize color to 0-1 range
+	color := [4]f32 {
+		f32(tint.r) / 255.0,
+		f32(tint.g) / 255.0,
+		f32(tint.b) / 255.0,
+		f32(tint.a) / 255.0,
+	}
+
+	// Use actual texture dimensions
+	texture_width := texture_size.x
+	texture_height := texture_size.y
+
+	// Calculate UV coordinates for font atlas
+	uv := Rect {
+		x = src.x / texture_width,
+		y = src.y / texture_height,
+		w = src.w / texture_width,
+		h = src.h / texture_height,
+	}
+
+	// Add four vertices for the quad (counter-clockwise)
+	append(
+		&font_batch.vertices,
+		SpriteVertex {
+			position = {dest.x, dest.y}, // Top-left
+			uv       = {uv.x, uv.y},
+			color    = color,
+		},
+	)
+	append(
+		&font_batch.vertices,
+		SpriteVertex {
+			position = {dest.x + dest.w, dest.y}, // Top-right
+			uv       = {uv.x + uv.w, uv.y},
+			color    = color,
+		},
+	)
+	append(
+		&font_batch.vertices,
+		SpriteVertex {
+			position = {dest.x + dest.w, dest.y + dest.h}, // Bottom-right
+			uv       = {uv.x + uv.w, uv.y + uv.h},
+			color    = color,
+		},
+	)
+	append(
+		&font_batch.vertices,
+		SpriteVertex {
+			position = {dest.x, dest.y + dest.h}, // Bottom-left
+			uv       = {uv.x, uv.y + uv.h},
+			color    = color,
+		},
+	)
+
+	font_batch.sprite_count += 1
+}
+
+// Separate font flush function
+flush_fonts :: proc() {
+	if font_batch.sprite_count == 0 do return
+
+	if len(font_batch.vertices) == 0 {
+		return
+	}
+
+	// Update font vertex buffer with current vertices
+	vertex_data := sgfx.Range {
+		ptr  = raw_data(font_batch.vertices),
+		size = uint(len(font_batch.vertices) * size_of(SpriteVertex)),
+	}
+	sgfx.update_buffer(font_batch.vertex_buffer, vertex_data)
+
+	// Create view for font texture
+	view := sgfx.make_view({texture = {image = font_batch.current_texture}})
+	defer sgfx.destroy_view(view)
+
+	// Update font bindings with current view
+	font_batch.bindings.views[0] = view
+
+	// Apply font pipeline and bindings
+	sgfx.apply_pipeline(font_batch.pipeline)
+	sgfx.apply_bindings(font_batch.bindings)
+
+	// Apply font uniforms
+	uniforms := Uniforms {
+		projection = font_batch.projection,
+	}
+
+	sgfx.apply_uniforms(UB_uniforms, {ptr = &uniforms, size = size_of(Uniforms)})
+
+	// Draw font sprites
+	num_indices := font_batch.sprite_count * 6
+	sgfx.draw(0, num_indices, 1)
+
+	// Reset for next batch
+	clear_dynamic_array(&font_batch.vertices)
+	font_batch.sprite_count = 0
+}
+
+// Font-specific draw function
+draw_font_sprite_internal :: proc(texture_handle: u32, src: Rect, dest: Rect, tint: Color) {
+	if texture_handle == 0 || int(texture_handle) > len(texture_manager.textures) {
+		log.warnf("draw_font_sprite: invalid texture handle %d", texture_handle)
+		return
+	}
+
+	texture_info := texture_manager.textures[texture_handle - 1]
+	if texture_info.image.id == 0 {
+		log.warnf("draw_font_sprite: texture handle %d has no valid image", texture_handle)
+		return
+	}
+
+	texture_size := [2]f32{f32(texture_info.width), f32(texture_info.height)}
+	add_font_sprite(texture_info.image, src, dest, tint, texture_size)
 }

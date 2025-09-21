@@ -175,8 +175,8 @@ text_draw_text :: proc(text: string, font: Font, position: Vec2, color: Color) {
 					h = f32(char_info.y1 - char_info.y0),
 				}
 
-				// Draw the character using existing sprite system
-				backend.draw_sprite(
+				// Draw the character using separate font sprite system
+				backend.draw_font_sprite(
 					u32(texture),
 					backend.Rect(src),
 					backend.Rect(dest),

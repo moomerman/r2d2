@@ -377,3 +377,7 @@ is_mouse_pressed :: proc(button: MouseButton) -> bool {
 is_mouse_just_pressed :: proc(button: MouseButton) -> bool {
 	return backend_state.mouse_just_pressed[button]
 }
+
+draw_font_sprite :: proc(texture_handle: u32, src: Rect, dest: Rect, tint: Color) {
+	draw_font_sprite_internal(texture_handle, src, dest, tint)
+}
