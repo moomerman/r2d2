@@ -1,8 +1,9 @@
 package r2d2
 
-import backend "./sokol"
 import "core:math"
 import "core:math/linalg"
+
+import backend "./sokol"
 
 // Camera represents a 2D view transformation
 Camera :: struct {
@@ -77,13 +78,11 @@ camera_reset :: proc() {
 	update_transform_if_needed()
 }
 
-// Push current camera onto stack and set new camera
 camera_push :: proc(camera: Camera) {
 	append(&camera_stack, current_camera)
 	camera_set(camera)
 }
 
-// Pop camera from stack and restore it
 camera_pop :: proc() {
 	if len(camera_stack) > 0 {
 		current_camera = pop(&camera_stack)
@@ -92,7 +91,6 @@ camera_pop :: proc() {
 	}
 }
 
-// Camera movement and manipulation
 camera_move :: proc(offset: Vec2) {
 	current_camera.position += offset
 	transform_dirty = true

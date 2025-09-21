@@ -10,6 +10,7 @@ import r2 "../../src"
 logo: r2.Texture
 font: r2.Font
 camera: r2.Camera
+previous_window_size: r2.Vec2
 
 WIDTH :: 800
 HEIGHT :: 600
@@ -24,9 +25,10 @@ init :: proc() {
 	font = r2.load_font("assets/crimes-09.ttf", 24)
 	logo = r2.load_texture("assets/odin-logo.jpg")
 
-	// Create a centered camera
 	camera = r2.camera_create_centered(WIDTH, HEIGHT, r2.vec2(0, 0), 1.0)
 	r2.camera_set(camera)
+
+	previous_window_size = r2.get_window_size()
 
 	log.info("Camera Demo Controls:")
 	log.info("  WASD - Move camera")
@@ -38,6 +40,27 @@ init :: proc() {
 }
 
 update :: proc() {
+	// Check if window size changed and update camera accordingly
+	current_window_size := r2.get_window_size()
+	if current_window_size != previous_window_size {
+		// Preserve camera state but update for new window size
+		current_cam := r2.camera_get()
+		camera = r2.camera_create_centered(
+			current_window_size.x,
+			current_window_size.y,
+			current_cam.position,
+			current_cam.zoom,
+		)
+		camera.rotation = current_cam.rotation
+		r2.camera_set(camera)
+		previous_window_size = current_window_size
+		log.infof(
+			"Window resized to %.0fx%.0f, camera updated",
+			current_window_size.x,
+			current_window_size.y,
+		)
+	}
+
 	dt: f32 = 1.0 / 60.0 // Assume 60 FPS for this demo
 	camera_speed: f32 = 200.0 * dt
 	zoom_speed: f32 = 2.0 * dt
@@ -156,29 +179,30 @@ draw_world :: proc() {
 }
 
 draw_ui :: proc() {
+	current_cam := r2.camera_get()
 	// Save current camera and reset to screen space for UI
 	r2.camera_push(r2.camera_create())
 
-	// Draw UI elements in screen space
-	current_cam := r2.camera_get()
-	ui_text := fmt.tprintf(
-		"Camera System Demo\n" +
-		"Position: (%.1f, %.1f)\n" +
-		"Zoom: %.2fx\n" +
-		"Rotation: %.1f°\n\n" +
-		"Controls:\n" +
-		"WASD - Move camera\n" +
-		"Q/E - Rotate camera\n" +
-		"Z/X - Zoom in/out\n" +
-		"R - Reset camera\n" +
-		"SPACE - Shake camera",
-		current_cam.position.x,
-		current_cam.position.y,
-		current_cam.zoom,
-		math.to_degrees(current_cam.rotation),
+	r2.draw_text(
+		fmt.tprintf("Position: %.1f, %.1f", current_cam.position.x, current_cam.position.y),
+		font,
+		{10, 20},
+		{255, 255, 255, 255},
 	)
 
-	r2.draw_text(ui_text, font, {10, 10}, {255, 255, 255, 255})
+	r2.draw_text(
+		fmt.tprintf("Zoom: %.2fx", current_cam.zoom),
+		font,
+		{10, 40},
+		{255, 255, 255, 255},
+	)
+
+	r2.draw_text(
+		fmt.tprintf("Rotation: %.1f°", math.to_degrees(current_cam.rotation)),
+		font,
+		{10, 60},
+		{255, 255, 255, 255},
+	)
 
 	// Mouse position info
 	mouse_pos := r2.get_mouse_position()
