@@ -142,7 +142,10 @@ sokol_frame :: proc "c" () {
 
 	// Set up 2D rendering
 	begin()
-	set_projection(800, 600) // TODO: Get actual window size
+	// Get actual window dimensions from Sokol
+	window_width := f32(sapp.width())
+	window_height := f32(sapp.height())
+	set_projection(window_width, window_height)
 
 	// Call user render
 	if backend_state.render_callback != nil {
@@ -200,6 +203,12 @@ sokol_event :: proc "c" (event: ^sapp.Event) {
 
 	case .QUIT_REQUESTED:
 		backend_state.should_quit = true
+
+	case .RESIZED:
+		window_width := f32(event.window_width)
+		window_height := f32(event.window_height)
+		set_projection(window_width, window_height)
+		update_font_projection(window_width, window_height)
 	}
 }
 
@@ -380,4 +389,8 @@ is_mouse_just_pressed :: proc(button: MouseButton) -> bool {
 
 draw_font_sprite :: proc(texture_handle: u32, src: Rect, dest: Rect, tint: Color) {
 	draw_font_sprite_internal(texture_handle, src, dest, tint)
+}
+
+get_window_size :: proc() -> (width: f32, height: f32) {
+	return f32(sapp.width()), f32(sapp.height())
 }

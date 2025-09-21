@@ -62,13 +62,14 @@ draw_texture :: proc() {
 
 draw_text :: proc() {
 	r2.draw_text("Hello, R2D2!", font, {50, 50}, {255, 255, 255, 255})
-	r2.draw_text("Text rendering works!", font, {50, 100}, {255, 100, 100, 255})
-	r2.draw_text("Different colors!", font, {50, 150}, {100, 255, 100, 255})
-	r2.draw_text("And positions!", font, {200, 200}, {100, 100, 255, 255})
 
 	mouse_pos := r2.get_mouse_position()
 	mouse_text := fmt.tprintf("Mouse: {:.0f}, {:.0f}", mouse_pos.x, mouse_pos.y)
 	r2.draw_text(mouse_text, font, {50, 300}, {255, 255, 100, 255})
+
+	widow_size := r2.get_window_size()
+	window_text := fmt.tprintf("Window: {:.0f}x{:.0f}", widow_size.x, widow_size.y)
+	r2.draw_text(window_text, font, {50, 330}, {200, 255, 200, 255})
 
 	text := "This text has calculated size"
 	text_size := r2.get_text_size(text, font)

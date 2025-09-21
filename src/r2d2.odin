@@ -81,6 +81,11 @@ get_texture_size :: proc(texture: Texture) -> (width: f32, height: f32) {
 	return backend.get_texture_size(u32(texture))
 }
 
+get_window_size :: proc() -> Vec2 {
+	width, height := backend.get_window_size()
+	return Vec2{width, height}
+}
+
 should_quit :: proc() -> bool {
 	return backend.should_quit()
 }

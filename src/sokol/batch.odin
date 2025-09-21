@@ -7,6 +7,7 @@ import "core:strings"
 
 import stbi "vendor:stb/image"
 
+import sapp "../../.deps/github.com/floooh/sokol-odin/sokol/app"
 import sgfx "../../.deps/github.com/floooh/sokol-odin/sokol/gfx"
 
 // Define our own types to avoid cyclical imports
@@ -234,8 +235,10 @@ init_batch :: proc() {
 		samplers = {0 = font_batch.sampler},
 	}
 
-	// Initialize font projection
-	font_batch.projection = linalg.matrix_ortho3d_f32(0, 800, 600, 0, -1, 1)
+	// Initialize font projection with actual window dimensions
+	window_width := f32(sapp.width())
+	window_height := f32(sapp.height())
+	font_batch.projection = linalg.matrix_ortho3d_f32(0, window_width, window_height, 0, -1, 1)
 }
 
 cleanup :: proc() {
@@ -299,6 +302,10 @@ reset_transform_matrix :: proc() {
 
 update_view_projection :: proc() {
 	sprite_batch.view_projection = sprite_batch.projection * sprite_batch.transform
+}
+
+update_font_projection :: proc(width, height: f32) {
+	font_batch.projection = linalg.matrix_ortho3d_f32(0, width, height, 0, -1, 1)
 }
 
 add_sprite :: proc(texture: sgfx.Image, src: Rect, dest: Rect, tint: Color, texture_size: [2]f32) {
@@ -388,8 +395,6 @@ flush :: proc() {
 	}
 	sgfx.update_buffer(sprite_batch.vertex_buffer, vertex_data)
 
-	// Create view for current texture like the working example approach
-	// Create view for current texture
 	view := sgfx.make_view({texture = {image = sprite_batch.current_texture}})
 	defer sgfx.destroy_view(view)
 
